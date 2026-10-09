@@ -376,6 +376,7 @@ class Tool(Protocol):
 | `protected_resource` | 409 | Ressource qui ne peut être ni supprimée ni archivée |
 | `internal_error` | 500 | Erreur inattendue ; aucun détail interne n'est renvoyé |
 | `not_found` | 404 | Ressource inconnue |
+| `method_not_allowed` | 405 | Méthode non prise en charge par cette route |
 | `invalid_state_transition` | 409 | Transition d'état interdite |
 | `version_immutable` | 409 | Tentative de modifier une version figée |
 | `content_hash_mismatch` | 409 | Le contenu a changé depuis son affichage |
