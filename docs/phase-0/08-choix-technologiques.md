@@ -45,7 +45,7 @@ L'espace disque, l'absence de clé d'API et la situation du dépôt git sont rep
 | API | FastAPI | 0.143.0 **[V]** | Imposé ; génère le schéma OpenAPI qui sert de contrat | — |
 | Validation | Pydantic, pydantic-settings | 2.14.0, 2.15.0 **[V]** | Imposé ; même outil pour l'API, le protocole agent et la configuration | — |
 | Serveur | Uvicorn | 0.54.0 **[V]** | Serveur ASGI de référence pour FastAPI | — |
-| Accès aux données | SQLAlchemy | 2.1.4 **[V]** | Un seul modèle pour SQLite et PostgreSQL | SQL écrit à la main |
+| Accès aux données | SQLAlchemy, avec son extra `asyncio` (qui apporte `greenlet`, requis par le moteur asynchrone) | 2.1.4 **[V]** | Un seul modèle pour SQLite et PostgreSQL | SQL écrit à la main |
 | Migrations | Alembic | 1.20.0 **[V]** | Compagnon de SQLAlchemy | — |
 | Pilotes | aiosqlite (local), psycopg (hébergé) | 0.22.1, 3.3.6 **[V]** | Pilotes asynchrones des deux moteurs | — |
 | Client HTTP | httpx | 0.28.1 **[V]** | Asynchrone, délais fins, transport simulable en test | requests |

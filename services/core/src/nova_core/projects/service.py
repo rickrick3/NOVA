@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,9 @@ from nova_core.projects.schemas import (
 
 DEFAULT_PROJECT_NAME = "Espace libre"
 
+# The settings that decide whether anything leaves the machine: every change is audited.
+_SECURITY_SETTINGS = ("llm_privacy", "web_access")
+
 
 class ProjectNotFoundError(NovaError):
     def __init__(self) -> None:
@@ -40,8 +43,12 @@ def _decode_position(cursor: str) -> tuple[datetime, str]:
     if not isinstance(created_at, str) or not isinstance(project_id, str):
         raise InvalidCursorError()
     try:
-        return datetime.fromisoformat(created_at), project_id
-    except ValueError:
+        instant = datetime.fromisoformat(created_at)
+        if instant.tzinfo is None:
+            raise InvalidCursorError()
+        # Converting here rather than at bind time: an out-of-range instant must be a 422.
+        return instant.astimezone(UTC), project_id
+    except (ValueError, OverflowError):
         raise InvalidCursorError() from None
 
 
@@ -88,15 +95,31 @@ class ProjectService:
             raise ProjectNotFoundError()
         return project
 
-    async def update(self, project_id: str, data: ProjectUpdate) -> Project:
+    async def update(self, project_id: str, data: ProjectUpdate, *, actor_id: str) -> Project:
         project = await self.get(project_id)
         if project.is_default and data.status == "archived":
             raise ProtectedResourceError()
+
+        changed_settings: dict[str, str | int | bool | None] = {}
         for field in ("name", "description", "llm_privacy", "web_access", "status"):
             value = getattr(data, field)
-            if value is not None:
-                setattr(project, field, value)
+            if value is None:
+                continue
+            previous = getattr(project, field)
+            if field in _SECURITY_SETTINGS and value != previous:
+                changed_settings[f"{field}_from"] = previous
+                changed_settings[f"{field}_to"] = value
+            setattr(project, field, value)
         project.updated_at = self._clock.now()
+
+        if changed_settings:
+            await self._audit.record(
+                actor_type="user",
+                actor_id=actor_id,
+                action="project.settings_changed",
+                outcome="succeeded",
+                resource={"project_id": project_id, **changed_settings},
+            )
         await self._session.commit()
         return project
 
@@ -141,10 +164,11 @@ class SpecItemNotFoundError(NovaError):
 
 
 class SpecItemService:
-    def __init__(self, session: AsyncSession, clock: Clock) -> None:
+    def __init__(self, session: AsyncSession, audit: AuditService, clock: Clock) -> None:
         self._session = session
         self._projects = ProjectRepository(session)
         self._items = SpecItemRepository(session)
+        self._audit = audit
         self._clock = clock
 
     async def _require_project(self, project_id: str) -> None:
@@ -194,9 +218,17 @@ class SpecItemService:
         await self._session.commit()
         return item
 
-    async def delete(self, item_id: str) -> None:
+    async def delete(self, item_id: str, *, actor_id: str) -> None:
         item = await self.get(item_id)
         await self._items.delete(item)
+        # Which item, in which project, by whom; never its text.
+        await self._audit.record(
+            actor_type="user",
+            actor_id=actor_id,
+            action="spec_item.deleted",
+            outcome="succeeded",
+            resource={"project_id": item.project_id, "item_id": item_id},
+        )
         await self._session.commit()
 
     async def list(

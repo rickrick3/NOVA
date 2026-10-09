@@ -47,7 +47,8 @@ class UTCDateTime(TypeDecorator[datetime]):
 
 
 def create_engine(database_url: str) -> AsyncEngine:
-    engine = create_async_engine(database_url)
+    # hide_parameters: a failing statement must not put tokens or hashes in the log.
+    engine = create_async_engine(database_url, hide_parameters=True)
     if make_url(database_url).get_backend_name() == "sqlite":
 
         @event.listens_for(engine.sync_engine, "connect")

@@ -29,7 +29,9 @@ Un espace de travail `uv` regroupe les trois paquets Python ; un espace de trava
 4. Le noyau `kernel` (configuration, session de base, erreurs, horloge, identifiants, registre de capacités) ne dépend d'aucun module métier.
 5. Aucun module n'appelle un SDK de fournisseur ; seul `providers` le fait.
 
-Un test d'architecture vérifie les règles 2 et 5 par analyse des imports.
+Un test d'architecture vérifie les règles 2, 4 et 5 par analyse des imports.
+
+Tout module qui expose des routes authentifiées s'appuie sur les dépendances FastAPI de `identity` (`identity.deps`) ; cette dépendance-là n'est pas répétée dans le tableau ci-dessous au-delà de `projects`. `kernel` et `audit` reçoivent la leur par injection depuis la racine de composition, pour ne dépendre d'aucun module métier.
 
 ## 3. Modules du Core
 
@@ -41,7 +43,7 @@ Identifiants : `identity`, `projects`, `conversations`, `orchestrator`, `provide
 | Module | Responsabilité | Dépend de | Module du cahier des charges | Phase |
 | --- | --- | --- | --- | --- |
 | `identity` | Compte local, sessions, protection CSRF | `audit` | Sécurité §10 | 1 |
-| `projects` | Projets, objectifs, exigences, contraintes, réglages de confidentialité | `audit` | M4 | 1 |
+| `projects` | Projets, objectifs, exigences, contraintes, réglages de confidentialité | `audit`, `identity` | M4 | 1 |
 | `conversations` | Conversations, messages en ajout seul, assemblage du contexte | `projects`, `memory` | M1 | 1 |
 | `orchestrator` | Boucle modèle–outils, registre d'outils, posture, questions de clarification | `conversations`, `providers`, `permissions`, `tasks`, `memory` | M1, M2 | 1 |
 | `providers` | Ports de capacité, adaptateurs, routeur, budgets, usage | — | §5 | 1 |

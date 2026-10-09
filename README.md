@@ -39,7 +39,9 @@ Depuis `services/core` :
 uv run python -m nova_core
 ```
 
-Le Core écoute sur `http://127.0.0.1:8000` et range ses données dans le répertoire applicatif de l'utilisateur (`%LOCALAPPDATA%\NOVA` sous Windows). La variable `NOVA_DATA_DIR` permet d'en choisir un autre. La documentation interactive de l'API est servie sur `/api/v1/docs`.
+Le Core écoute sur `http://127.0.0.1:8000` et range ses données dans le répertoire applicatif de l'utilisateur (`%LOCALAPPDATA%\NOVA` sous Windows). Les réglages se passent par variables d'environnement préfixées `NOVA_`, ou par un fichier `.env` : `NOVA_DATA_DIR` pour un autre répertoire de données, `NOVA_PORT` si le port 8000 est pris.
+
+La page interactive de l'API est désactivée par défaut, parce qu'elle charge des scripts depuis un CDN public. Pour le développement, `NOVA_API_DOCS=1` la sert sur `/api/v1/docs`.
 
 ## État actuel
 
@@ -50,7 +52,11 @@ Plan 1A livré — socle du Core :
 - stockage privé de fichiers, journal d'audit en ajout seul ;
 - `GET /api/v1/system/capabilities`, qui dit ce que le Core sait réellement faire.
 
-Limite connue : toutes les capacités — conversation, recherche, images, agent local, voix — sont déclarées `not_implemented`. Elles arrivent avec les plans 1B à 1D ; il n'y a pas encore d'interface.
+Limites connues :
+
+- toutes les capacités — conversation, recherche, images, agent local, voix — sont déclarées `not_implemented` ; elles arrivent avec les plans 1B à 1D, et il n'y a pas encore d'interface ;
+- il n'existe aucun moyen de changer ou de récupérer le mot de passe du compte local : en cas d'oubli, il faut supprimer le répertoire de données ;
+- pour les migrations en ligne de commande, la base doit être désignée explicitement : `uv run alembic -x database_url=sqlite:///chemin/nova.db upgrade head`.
 
 Le contrat d'API est figé dans `services/core/openapi.json`. Après un changement voulu de l'API, le régénérer :
 

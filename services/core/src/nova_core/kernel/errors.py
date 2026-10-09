@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 PROBLEM_JSON = "application/problem+json"
@@ -115,3 +116,69 @@ def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(NovaError, _render_nova_error)
     app.add_exception_handler(StarletteHTTPException, _render_http_error)
     app.add_exception_handler(RequestValidationError, _render_validation_error)
+
+
+class ProblemFieldError(BaseModel):
+    loc: list[str | int]
+    msg: str
+    type: str
+
+
+class Problem(BaseModel):
+    """Body of every error response, sent as ``application/problem+json``."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str
+    title: str
+    status: int
+    code: str
+    detail: str
+    request_id: str | None
+
+
+class ValidationProblem(Problem):
+    errors: list[ProblemFieldError]
+
+
+def _problem_content(model: str) -> dict[str, Any]:
+    return {PROBLEM_JSON: {"schema": {"$ref": f"#/components/schemas/{model}"}}}
+
+
+def install_problem_schema(app: FastAPI) -> None:
+    """Makes the OpenAPI schema describe the error bodies the server really sends.
+
+    FastAPI documents its own validation error format, which this application replaces;
+    client types generated from the schema would otherwise be wrong for every error.
+    """
+    generate = app.openapi
+    rewritten = False
+
+    def openapi() -> dict[str, Any]:
+        nonlocal rewritten
+        schema = generate()
+        if rewritten:
+            return schema
+        components = schema.setdefault("components", {}).setdefault("schemas", {})
+        for model in (Problem, ValidationProblem):
+            definition = model.model_json_schema(ref_template="#/components/schemas/{model}")
+            components.update(definition.pop("$defs", {}))
+            components[model.__name__] = definition
+        for name in ("HTTPValidationError", "ValidationError"):
+            components.pop(name, None)
+        for operations in schema.get("paths", {}).values():
+            for operation in operations.values():
+                responses = operation.setdefault("responses", {})
+                if "422" in responses:
+                    responses["422"] = {
+                        "description": "Validation error",
+                        "content": _problem_content("ValidationProblem"),
+                    }
+                responses["default"] = {
+                    "description": "Error",
+                    "content": _problem_content("Problem"),
+                }
+        rewritten = True
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]

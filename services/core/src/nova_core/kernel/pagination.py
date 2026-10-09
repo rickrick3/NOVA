@@ -8,6 +8,9 @@ from dataclasses import dataclass
 
 from nova_core.kernel.errors import NovaError
 
+# Real cursors are a few dozen characters; anything long is not one of ours.
+MAX_CURSOR_LENGTH = 512
+
 
 @dataclass(frozen=True)
 class Page[T]:
@@ -28,10 +31,12 @@ def encode_cursor(values: Sequence[str | int]) -> str:
 def decode_cursor(cursor: str, arity: int) -> list[str | int]:
     """Decodes a cursor produced by ``encode_cursor``. A cursor comes from the client,
     so anything unexpected is a validation error, never a crash."""
+    if len(cursor) > MAX_CURSOR_LENGTH:
+        raise InvalidCursorError()
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
         value = json.loads(base64.b64decode(padded, altchars=b"-_", validate=True))
-    except (ValueError, binascii.Error):
+    except (ValueError, binascii.Error, RecursionError):
         raise InvalidCursorError() from None
     if not isinstance(value, list) or len(value) != arity:
         raise InvalidCursorError()

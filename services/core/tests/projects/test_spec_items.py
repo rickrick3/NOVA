@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import func, select
 
+from nova_core.audit.service import AuditService
 from nova_core.projects.models import ProjectSpecItem
 from nova_core.projects.service import SpecItemService
 
@@ -37,7 +38,7 @@ async def test_the_client_cannot_choose_the_origin_or_the_confirmation(auth_clie
 async def test_a_proposal_from_nova_stays_unconfirmed_until_the_user_confirms(
     auth_client, project_id, session, clock
 ):
-    item = await SpecItemService(session, clock).propose(
+    item = await SpecItemService(session, AuditService(session, clock), clock).propose(
         project_id, kind="requirement", text="Fonctionner hors ligne"
     )
     assert (item.origin, item.confirmed) == ("nova", False)

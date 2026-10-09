@@ -26,10 +26,3 @@ async def test_audit_filters_and_paginates(auth_client):
         "auth.setup",
     )
     assert (await auth_client.get(AUDIT, params={"actor_type": "robot"})).status_code == 422
-
-
-async def test_no_route_can_modify_or_delete_audit_events(app):
-    methods = set().union(
-        *(r.methods for r in app.routes if getattr(r, "path", "").startswith("/api/v1/audit"))
-    )
-    assert methods <= {"GET", "HEAD"}

@@ -16,7 +16,7 @@ from nova_core.kernel import db, migrate
 from nova_core.kernel.capabilities import CAPABILITY_IDS, CapabilityRegistry
 from nova_core.kernel.clock import Clock, SystemClock
 from nova_core.kernel.config import Settings
-from nova_core.kernel.errors import install_error_handlers
+from nova_core.kernel.errors import install_error_handlers, install_problem_schema
 from nova_core.kernel.http_guards import HostOriginMiddleware
 from nova_core.kernel.logging import RequestContextMiddleware
 from nova_core.kernel.ratelimit import TokenBucketLimiter
@@ -25,6 +25,8 @@ from nova_core.projects.service import ProjectService
 from nova_core.storage.service import BlobService
 
 API_PREFIX = "/api/v1"
+# A stored file younger than this may belong to a write that has not committed yet.
+BLOB_GRACE_SECONDS = 300
 
 
 @asynccontextmanager
@@ -43,7 +45,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             # Before any request is served: drop files left behind by rolled-back writes.
             await BlobService(
                 session, settings.data_dir / "blobs", app.state.clock, settings.max_blob_bytes
-            ).collect_garbage()
+            ).collect_garbage(min_age_seconds=BLOB_GRACE_SECONDS)
             clock = app.state.clock
             await ProjectService(session, AuditService(session, clock), clock).ensure_default()
         yield
@@ -57,8 +59,9 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
         title="NOVA Core",
         version=__version__,
         openapi_url=f"{API_PREFIX}/openapi.json",
-        docs_url=f"{API_PREFIX}/docs",
+        docs_url=f"{API_PREFIX}/docs" if settings.api_docs else None,
         redoc_url=None,
+        swagger_ui_oauth2_redirect_url=None,
         lifespan=_lifespan,
     )
     app.state.settings = settings
@@ -76,6 +79,7 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
         app.state.capabilities.declare_not_implemented(capability_id)
 
     install_error_handlers(app)
+    install_problem_schema(app)
     # The middleware added last runs first: the request gets its identifier, then the
     # Host and Origin checks apply, before any route.
     app.add_middleware(

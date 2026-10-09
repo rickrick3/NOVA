@@ -73,7 +73,8 @@ class AuditService:
         before_seq: int | None = None
         if cursor is not None:
             (value,) = decode_cursor(cursor, arity=1)
-            if not isinstance(value, int):
+            # seq is a positive 64-bit integer; anything else cannot be one of our cursors.
+            if not isinstance(value, int) or not 0 <= value < 2**63:
                 raise InvalidCursorError()
             before_seq = value
         # One extra row tells whether another page exists.

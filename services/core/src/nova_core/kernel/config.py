@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     auth_rate_limit_attempts: int = 5
     auth_rate_limit_window_seconds: int = 60
     max_blob_bytes: int = 52_428_800
+    # The interactive API page loads scripts from a public CDN: off unless asked for.
+    api_docs: bool = False
 
     @model_validator(mode="after")
     def _local_mode_listens_on_loopback_only(self) -> Self:

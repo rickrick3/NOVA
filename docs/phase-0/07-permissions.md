@@ -146,6 +146,8 @@ Sont journalisés : chaque décision de permission, chaque approbation ou refus,
 
 Le journal est en ajout seul (INV-8). Il ne contient ni contenu de fichier, ni texte de message, ni secret.
 
+Actions journalisées par le socle du Core : `auth.setup`, `auth.login`, `auth.login_failed`, `auth.logout`, `project.settings_changed` (changement de `llm_privacy` ou de `web_access`, avec l'ancienne et la nouvelle valeur), `project.deleted`, `spec_item.deleted`.
+
 ## 9. Tests
 
 La matrice est la spécification des tests de permissions : chaque ligne donne au moins un cas autorisé et un cas refusé. Les lignes de l'agent sont testées deux fois, contre le moteur du Core et contre l'agent seul, pour vérifier que l'agent refuse même si le Core laisse passer.

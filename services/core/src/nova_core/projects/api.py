@@ -54,8 +54,12 @@ async def get_project(project_id: str, projects: ProjectsDep) -> ProjectOut:
 
 
 @router.patch("/{project_id}")
-async def update_project(project_id: str, body: ProjectUpdate, projects: ProjectsDep) -> ProjectOut:
-    return ProjectOut.model_validate(await projects.update(project_id, body))
+async def update_project(
+    project_id: str, body: ProjectUpdate, projects: ProjectsDep, context: CurrentSession
+) -> ProjectOut:
+    return ProjectOut.model_validate(
+        await projects.update(project_id, body, actor_id=context.user_id)
+    )
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -69,7 +73,8 @@ spec_items_router = APIRouter(
 
 
 def get_spec_item_service(request: Request, session: DbSession) -> SpecItemService:
-    return SpecItemService(session, request.app.state.clock)
+    clock = request.app.state.clock
+    return SpecItemService(session, AuditService(session, clock), clock)
 
 
 SpecItemsDep = Annotated[SpecItemService, Depends(get_spec_item_service)]
@@ -93,5 +98,5 @@ async def update_spec_item(item_id: str, body: SpecItemUpdate, items: SpecItemsD
 
 
 @spec_items_router.delete("/{item_id}", status_code=204)
-async def delete_spec_item(item_id: str, items: SpecItemsDep) -> None:
-    await items.delete(item_id)
+async def delete_spec_item(item_id: str, items: SpecItemsDep, context: CurrentSession) -> None:
+    await items.delete(item_id, actor_id=context.user_id)
