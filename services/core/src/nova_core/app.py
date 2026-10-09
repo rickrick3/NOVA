@@ -7,10 +7,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from nova_core import __version__
+from nova_core.audit import api as audit_api
 from nova_core.audit.service import AuditService
 from nova_core.identity import api as identity_api
+from nova_core.identity.deps import require_session
 from nova_core.kernel import api as system_api
 from nova_core.kernel import db, migrate
+from nova_core.kernel.capabilities import CAPABILITY_IDS, CapabilityRegistry
 from nova_core.kernel.clock import Clock, SystemClock
 from nova_core.kernel.config import Settings
 from nova_core.kernel.errors import install_error_handlers
@@ -66,6 +69,12 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
         for name in ("auth.setup", "auth.login")
     }
 
+    # Every capability starts as not implemented; a module that really provides one
+    # replaces the declaration with a probe.
+    app.state.capabilities = CapabilityRegistry()
+    for capability_id in CAPABILITY_IDS:
+        app.state.capabilities.declare_not_implemented(capability_id)
+
     install_error_handlers(app)
     # The middleware added last runs first: the request gets its identifier, then the
     # Host and Origin checks apply, before any route.
@@ -75,7 +84,8 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
         allowed_origins=settings.allowed_origins,
     )
     app.add_middleware(RequestContextMiddleware)
-    app.include_router(system_api.router, prefix=API_PREFIX)
+    app.include_router(system_api.build_router(require_session), prefix=API_PREFIX)
+    app.include_router(audit_api.build_router(require_session), prefix=API_PREFIX)
     app.include_router(identity_api.router, prefix=API_PREFIX)
     app.include_router(projects_api.router, prefix=API_PREFIX)
     app.include_router(projects_api.spec_items_router, prefix=API_PREFIX)
