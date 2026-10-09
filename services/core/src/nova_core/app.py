@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from nova_core import __version__
+from nova_core.identity import api as identity_api
 from nova_core.kernel import api as system_api
 from nova_core.kernel import db, migrate
 from nova_core.kernel.clock import Clock, SystemClock
@@ -56,4 +57,5 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
     install_error_handlers(app)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(system_api.router, prefix=API_PREFIX)
+    app.include_router(identity_api.router, prefix=API_PREFIX)
     return app

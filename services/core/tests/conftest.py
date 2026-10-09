@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from nova_core.app import create_app
 from nova_core.kernel.config import Settings
-from tests.support import BASE_URL, FakeClock
+from tests.support import BASE_URL, CREDS, FakeClock
 
 
 @pytest.fixture
@@ -39,3 +39,11 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 async def session(app: FastAPI) -> AsyncIterator[AsyncSession]:
     async with app.state.session_factory() as s:
         yield s
+
+
+@pytest.fixture
+async def auth_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
+    await client.post("/api/v1/auth/setup", json=CREDS)
+    login = await client.post("/api/v1/auth/login", json=CREDS)
+    client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
+    return client
