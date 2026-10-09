@@ -13,6 +13,7 @@ from nova_core.kernel.clock import Clock, SystemClock
 from nova_core.kernel.config import Settings
 from nova_core.kernel.errors import install_error_handlers
 from nova_core.kernel.logging import RequestContextMiddleware
+from nova_core.storage.service import BlobService
 
 API_PREFIX = "/api/v1"
 
@@ -29,6 +30,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.engine = engine
     app.state.session_factory = db.create_session_factory(engine)
     try:
+        async with app.state.session_factory() as session:
+            # Before any request is served: drop files left behind by rolled-back writes.
+            await BlobService(
+                session, settings.data_dir / "blobs", app.state.clock, settings.max_blob_bytes
+            ).collect_garbage()
         yield
     finally:
         await engine.dispose()
