@@ -4,6 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from nova_core.app import create_app
 from nova_core.kernel.config import Settings
@@ -32,3 +33,9 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as c:
         yield c
+
+
+@pytest.fixture
+async def session(app: FastAPI) -> AsyncIterator[AsyncSession]:
+    async with app.state.session_factory() as s:
+        yield s
