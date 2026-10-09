@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from nova_core.projects.models import Project
+from nova_core.projects.models import Project, ProjectSpecItem
 
 
 class ProjectRepository:
@@ -39,4 +39,28 @@ class ProjectRepository:
                     and_(Project.created_at == created_at, Project.id < project_id),
                 )
             )
+        return list((await self._session.execute(statement)).scalars())
+
+
+class SpecItemRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, item_id: str) -> ProjectSpecItem | None:
+        return await self._session.get(ProjectSpecItem, item_id)
+
+    def add(self, item: ProjectSpecItem) -> None:
+        self._session.add(item)
+
+    async def delete(self, item: ProjectSpecItem) -> None:
+        await self._session.delete(item)
+
+    async def oldest_first(self, project_id: str, *, kind: str | None) -> list[ProjectSpecItem]:
+        statement = (
+            select(ProjectSpecItem)
+            .where(ProjectSpecItem.project_id == project_id)
+            .order_by(ProjectSpecItem.created_at, ProjectSpecItem.id)
+        )
+        if kind is not None:
+            statement = statement.where(ProjectSpecItem.kind == kind)
         return list((await self._session.execute(statement)).scalars())

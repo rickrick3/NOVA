@@ -78,4 +78,5 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
     app.include_router(system_api.router, prefix=API_PREFIX)
     app.include_router(identity_api.router, prefix=API_PREFIX)
     app.include_router(projects_api.router, prefix=API_PREFIX)
+    app.include_router(projects_api.spec_items_router, prefix=API_PREFIX)
     return app

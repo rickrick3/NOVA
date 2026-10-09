@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from nova_core.kernel.db import Base, UTCDateTime
@@ -17,5 +17,21 @@ class Project(Base):
     status: Mapped[str] = mapped_column(String(16))
     # The "free space" project that holds conversations not yet filed anywhere (INV-12).
     is_default: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class ProjectSpecItem(Base):
+    """An objective, a requirement or a constraint of a project."""
+
+    __tablename__ = "project_spec_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)
+    origin: Mapped[str] = mapped_column(String(8))
+    # An item proposed by NOVA stays unconfirmed until the user confirms it.
+    confirmed: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,9 +8,17 @@ from nova_core.kernel.clock import Clock
 from nova_core.kernel.errors import NovaError
 from nova_core.kernel.ids import new_id
 from nova_core.kernel.pagination import InvalidCursorError, Page, decode_cursor, encode_cursor
-from nova_core.projects.models import Project
-from nova_core.projects.repository import ProjectRepository
-from nova_core.projects.schemas import ProjectCreate, ProjectStatusFilter, ProjectUpdate
+from nova_core.projects.models import Project, ProjectSpecItem
+from nova_core.projects.repository import ProjectRepository, SpecItemRepository
+from nova_core.projects.schemas import (
+    ProjectCreate,
+    ProjectStatusFilter,
+    ProjectUpdate,
+    SpecItemCreate,
+    SpecItemKind,
+    SpecItemOrigin,
+    SpecItemUpdate,
+)
 
 DEFAULT_PROJECT_NAME = "Espace libre"
 
@@ -124,3 +133,74 @@ class ProjectService:
             last = items[-1]
             next_cursor = encode_cursor([last.created_at.isoformat(), last.id])
         return Page(items=items, next_cursor=next_cursor)
+
+
+class SpecItemNotFoundError(NovaError):
+    def __init__(self) -> None:
+        super().__init__("not_found", 404, "Item not found.")
+
+
+class SpecItemService:
+    def __init__(self, session: AsyncSession, clock: Clock) -> None:
+        self._session = session
+        self._projects = ProjectRepository(session)
+        self._items = SpecItemRepository(session)
+        self._clock = clock
+
+    async def _require_project(self, project_id: str) -> None:
+        if await self._projects.get(project_id) is None:
+            raise ProjectNotFoundError()
+
+    async def _create(
+        self, project_id: str, *, kind: SpecItemKind, text: str, origin: SpecItemOrigin
+    ) -> ProjectSpecItem:
+        await self._require_project(project_id)
+        now = self._clock.now()
+        item = ProjectSpecItem(
+            id=new_id(),
+            project_id=project_id,
+            kind=kind,
+            text=text,
+            origin=origin,
+            confirmed=origin == "user",
+            created_at=now,
+            updated_at=now,
+        )
+        self._items.add(item)
+        await self._session.commit()
+        return item
+
+    async def add(self, project_id: str, data: SpecItemCreate) -> ProjectSpecItem:
+        """An item written by the user: confirmed from the start."""
+        return await self._create(project_id, kind=data.kind, text=data.text, origin="user")
+
+    async def propose(self, project_id: str, *, kind: SpecItemKind, text: str) -> ProjectSpecItem:
+        """An item suggested by NOVA: a proposal until the user confirms it."""
+        return await self._create(project_id, kind=kind, text=text, origin="nova")
+
+    async def get(self, item_id: str) -> ProjectSpecItem:
+        item = await self._items.get(item_id)
+        if item is None:
+            raise SpecItemNotFoundError()
+        return item
+
+    async def update(self, item_id: str, data: SpecItemUpdate) -> ProjectSpecItem:
+        item = await self.get(item_id)
+        if data.text is not None:
+            item.text = data.text
+        if data.confirmed:
+            item.confirmed = True
+        item.updated_at = self._clock.now()
+        await self._session.commit()
+        return item
+
+    async def delete(self, item_id: str) -> None:
+        item = await self.get(item_id)
+        await self._items.delete(item)
+        await self._session.commit()
+
+    async def list(
+        self, project_id: str, *, kind: SpecItemKind | None = None
+    ) -> Sequence[ProjectSpecItem]:
+        await self._require_project(project_id)
+        return await self._items.oldest_first(project_id, kind=kind)

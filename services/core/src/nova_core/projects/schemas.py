@@ -49,3 +49,39 @@ class ProjectOut(BaseModel):
 class ProjectPage(BaseModel):
     items: list[ProjectOut]
     next_cursor: str | None
+
+
+SpecItemKind = Literal["objective", "requirement", "constraint"]
+SpecItemOrigin = Literal["user", "nova"]
+SpecItemText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+]
+
+
+class SpecItemCreate(BaseModel):
+    # No origin and no confirmed field: an item created through the API is the user's.
+    model_config = ConfigDict(extra="forbid")
+
+    kind: SpecItemKind
+    text: SpecItemText
+
+
+class SpecItemUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: SpecItemText | None = None
+    # A confirmation can be given, never withdrawn.
+    confirmed: Literal[True] | None = None
+
+
+class SpecItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    project_id: str
+    kind: SpecItemKind
+    text: str
+    origin: SpecItemOrigin
+    confirmed: bool
+    created_at: datetime
+    updated_at: datetime
