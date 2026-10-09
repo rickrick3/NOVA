@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from nova_core import __version__
+from nova_core.audit.service import AuditService
 from nova_core.identity import api as identity_api
 from nova_core.kernel import api as system_api
 from nova_core.kernel import db, migrate
@@ -16,6 +17,8 @@ from nova_core.kernel.errors import install_error_handlers
 from nova_core.kernel.http_guards import HostOriginMiddleware
 from nova_core.kernel.logging import RequestContextMiddleware
 from nova_core.kernel.ratelimit import TokenBucketLimiter
+from nova_core.projects import api as projects_api
+from nova_core.projects.service import ProjectService
 from nova_core.storage.service import BlobService
 
 API_PREFIX = "/api/v1"
@@ -38,6 +41,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             await BlobService(
                 session, settings.data_dir / "blobs", app.state.clock, settings.max_blob_bytes
             ).collect_garbage()
+            clock = app.state.clock
+            await ProjectService(session, AuditService(session, clock), clock).ensure_default()
         yield
     finally:
         await engine.dispose()
@@ -72,4 +77,5 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
     app.add_middleware(RequestContextMiddleware)
     app.include_router(system_api.router, prefix=API_PREFIX)
     app.include_router(identity_api.router, prefix=API_PREFIX)
+    app.include_router(projects_api.router, prefix=API_PREFIX)
     return app

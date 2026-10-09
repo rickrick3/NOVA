@@ -2,9 +2,9 @@
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Depends, Request
 from sqlalchemy import DateTime, event, text
 from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.ext.asyncio import (
@@ -75,6 +75,9 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
             yield session
         finally:
             await session.rollback()
+
+
+DbSession = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def ping_database(engine: AsyncEngine) -> None:

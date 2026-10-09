@@ -4,15 +4,12 @@ import hmac
 from typing import Annotated
 
 from fastapi import Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from nova_core.audit.service import AuditService
 from nova_core.identity.service import IdentityService, SessionContext
-from nova_core.kernel.db import get_session
+from nova_core.kernel.db import DbSession
 from nova_core.kernel.errors import NovaError
 from nova_core.kernel.http_guards import SAFE_METHODS
-
-DbSession = Annotated[AsyncSession, Depends(get_session)]
 
 
 def get_identity_service(request: Request, session: DbSession) -> IdentityService:
