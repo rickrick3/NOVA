@@ -1,20 +1,21 @@
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from nova_core.identity.deps import CurrentSession, IdentityDep, current_session
 from nova_core.identity.schemas import Credentials, SessionOut, SetupOut, UserOut
 from nova_core.kernel.config import Settings
 from nova_core.kernel.errors import NovaError
+from nova_core.kernel.ratelimit import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/setup", status_code=201)
+@router.post("/setup", status_code=201, dependencies=[Depends(rate_limit("auth.setup"))])
 async def setup(body: Credentials, identity: IdentityDep) -> SetupOut:
     user = await identity.setup(body.username, body.password)
     return SetupOut(user=UserOut(id=user.id, username=user.username))
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(rate_limit("auth.login"))])
 async def login(
     body: Credentials, request: Request, response: Response, identity: IdentityDep
 ) -> SessionOut:

@@ -13,7 +13,9 @@ from nova_core.kernel import db, migrate
 from nova_core.kernel.clock import Clock, SystemClock
 from nova_core.kernel.config import Settings
 from nova_core.kernel.errors import install_error_handlers
+from nova_core.kernel.http_guards import HostOriginMiddleware
 from nova_core.kernel.logging import RequestContextMiddleware
+from nova_core.kernel.ratelimit import TokenBucketLimiter
 from nova_core.storage.service import BlobService
 
 API_PREFIX = "/api/v1"
@@ -53,8 +55,20 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
     )
     app.state.settings = settings
     app.state.clock = clock or SystemClock()
+    auth_refill = settings.auth_rate_limit_attempts / settings.auth_rate_limit_window_seconds
+    app.state.rate_limiters = {
+        name: TokenBucketLimiter(settings.auth_rate_limit_attempts, auth_refill, app.state.clock)
+        for name in ("auth.setup", "auth.login")
+    }
 
     install_error_handlers(app)
+    # The middleware added last runs first: the request gets its identifier, then the
+    # Host and Origin checks apply, before any route.
+    app.add_middleware(
+        HostOriginMiddleware,
+        allowed_hosts=settings.allowed_hosts,
+        allowed_origins=settings.allowed_origins,
+    )
     app.add_middleware(RequestContextMiddleware)
     app.include_router(system_api.router, prefix=API_PREFIX)
     app.include_router(identity_api.router, prefix=API_PREFIX)
