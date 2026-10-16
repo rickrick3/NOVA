@@ -1,4 +1,4 @@
-# NOVA
+ # NOVA
 
 NOVA est un assistant IA personnel : un studio Web, un Core d'orchestration et un agent local. Ce dépôt contient les trois.
 
